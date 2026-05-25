@@ -1,0 +1,57 @@
+﻿import { Component, OnInit } from '@angular/core';
+import { Router, ActivatedRoute } from '@angular/router';
+import { first } from 'rxjs/operators';
+import { AccountService, AlertService } from '@app/services';
+
+enum EmailStatus {
+  Verifying,
+  Failed
+}
+
+@Component({
+  selector: 'app-verify-email',
+  templateUrl: './verify-email.component.html',
+  standalone: false
+})
+export class VerifyEmailComponent implements OnInit {
+  EmailStatus = EmailStatus;
+  emailStatus = EmailStatus.Verifying;
+
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private accountService: AccountService,
+    private alertService: AlertService
+  ) { }
+
+  ngOnInit() {
+    const token = this.route.snapshot.queryParams['token'];
+    this.router.navigate([], { relativeTo: this.route, replaceUrl: true });
+
+    if (!token) {
+      this.alertService.error('Verification token is missing. Please use the link from your email.');
+      this.emailStatus = EmailStatus.Failed;
+      return;
+    }
+
+    this.accountService.verifyEmail(token)
+      .pipe(first())
+      .subscribe({
+        next: () => {
+         
+          this.accountService.logout();
+          
+          this.alertService.success('Verification successful, you can now login', { keepAfterRouteChange: true });
+          this.router.navigate(['../login'], { relativeTo: this.route });
+        },
+        error: (error: any) => {
+          const message = typeof error === 'string'
+            ? error
+            : error?.error?.message || error?.message || 'Email verification failed';
+          this.alertService.error(message);
+          this.emailStatus = EmailStatus.Failed;
+        }
+      });
+  }
+}
+
